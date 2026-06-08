@@ -1,20 +1,19 @@
-# Google Cookie Injector
+# Cookie Injector
 
-Extensão Chrome (Manifest V3) que injeta cookies via `chrome.cookies` API. Você cola
-as linhas de cookies copiadas direto da aba **Application → Cookies** do DevTools e a
-extensão pré-visualiza ou injeta os cookies nos domínios do Google.
+Extensão Chrome (Manifest V3) que injeta cookies via `chrome.cookies` API em
+**qualquer domínio**. Você cola as linhas de cookies copiadas direto da aba
+**Application → Cookies** do DevTools e a extensão pré-visualiza ou injeta os cookies.
 
 ## ⚠️ Aviso de segurança
 
-Cookies de sessão (como `__Secure-1PSID`, `SID`, `SAPISID`, `GMAIL_AT`, etc.) são
-**credenciais de autenticação**. Qualquer pessoa com esses valores pode acessar a sua
-conta. **Nunca** faça commit de cookies reais neste repositório (público) nem os
-compartilhe. O arquivo `cookies.json` aqui contém apenas valores de exemplo
-(placeholders).
+Cookies de sessão são **credenciais de autenticação**. Qualquer pessoa com esses
+valores pode acessar a conta correspondente. **Nunca** faça commit de cookies reais
+neste repositório (público) nem os compartilhe. O arquivo `cookies.json` aqui contém
+apenas valores de exemplo (placeholders).
 
 ## Arquivos
 
-- `manifest.json` — definição da extensão (MV3).
+- `manifest.json` — definição da extensão (MV3); permite `http://*/*` e `https://*/*`.
 - `popup.html` / `popup.js` — interface: cola, pré-visualiza e injeta cookies.
 - `cookies.json` — exemplo de formato (somente placeholders).
 

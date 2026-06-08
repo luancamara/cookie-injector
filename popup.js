@@ -79,8 +79,9 @@ function parseRaw(raw) {
 // --- Injeção ----------------------------------------------------------------
 async function setCookie(c) {
   const host = c.domain.replace(/^\./, '');
+  const scheme = c.secure ? 'https://' : 'http://';
   const details = {
-    url: 'https://' + host + (c.path || '/'),
+    url: scheme + host + (c.path || '/'),
     name: c.name,
     value: c.value,
     path: c.path || '/',

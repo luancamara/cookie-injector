@@ -2,7 +2,7 @@
   {
     "name": "EXAMPLE_COOKIE",
     "value": "PASTE_YOUR_COOKIE_VALUE_HERE",
-    "domain": ".google.com",
+    "domain": ".example.com",
     "path": "/",
     "secure": true,
     "httpOnly": true,
