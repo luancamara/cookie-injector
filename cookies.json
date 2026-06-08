@@ -1,0 +1,13 @@
+[
+  {
+    "name": "EXAMPLE_COOKIE",
+    "value": "PASTE_YOUR_COOKIE_VALUE_HERE",
+    "domain": ".google.com",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "None",
+    "expirationDate": "2027-01-01T00:00:00.000Z",
+    "hostOnly": false
+  }
+]

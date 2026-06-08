@@ -1,0 +1,7 @@
+# Nunca versionar cookies reais / segredos
+cookies.local.json
+cookies.real.json
+*.secret.json
+.env
+.env.*
+.DS_Store

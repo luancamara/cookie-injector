@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font: 13px -apple-system, sans-serif; width: 460px; padding: 10px; }
+    h3 { margin: 0 0 6px; font-size: 13px; }
+    textarea {
+      width: 100%; height: 160px; box-sizing: border-box;
+      font: 11px ui-monospace, monospace; white-space: pre; tab-size: 4;
+    }
+    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    button { padding: 6px 14px; font-size: 13px; cursor: pointer; }
+    #inject { font-weight: 600; }
+    ul { list-style: none; padding-left: 0; margin: 8px 0 0; max-height: 220px; overflow: auto; }
+    li { margin: 2px 0; word-break: break-all; }
+    .ok { color: #1a7f37; }
+    .err { color: #cf222e; }
+    .warn { color: #9a6700; }
+    .muted { color: #57606a; }
+  </style>
+</head>
+<body>
+  <h3>Cole os cookies (copie direto da aba Application → Cookies do DevTools)</h3>
+  <textarea id="raw" placeholder="nome&#9;valor&#9;domínio&#9;path&#9;expira&#9;tamanho&#9;HttpOnly&#9;Secure&#9;SameSite&#9;...&#10;Cole aqui — uma linha por cookie (separado por TAB)."></textarea>
+  <div class="row">
+    <button id="inject">Injetar agora</button>
+    <button id="parse">Só pré-visualizar</button>
+    <button id="clear">Limpar</button>
+    <span id="status" class="muted"></span>
+  </div>
+  <ul id="log"></ul>
+  <script src="popup.js"></script>
+</body>
+</html>

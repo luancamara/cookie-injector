@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Google Cookie Injector",
+  "version": "1.0",
+  "description": "Injeta uma lista de cookies do Google (cookies.json) via chrome.cookies API",
+  "permissions": ["cookies", "storage"],
+  "host_permissions": [
+    "https://*.google.com/*",
+    "https://google.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
