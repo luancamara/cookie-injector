@@ -9,9 +9,9 @@
       width: 100%; height: 160px; box-sizing: border-box;
       font: 11px ui-monospace, monospace; white-space: pre; tab-size: 4;
     }
-    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
     button { padding: 6px 14px; font-size: 13px; cursor: pointer; }
-    #inject { font-weight: 600; }
+    #inject, #transplant { font-weight: 600; }
     ul { list-style: none; padding-left: 0; margin: 8px 0 0; max-height: 220px; overflow: auto; }
     li { margin: 2px 0; word-break: break-all; }
     .ok { color: #1a7f37; }
@@ -22,9 +22,33 @@
     input[type=text] { width: 100%; box-sizing: border-box; font: 12px ui-monospace, monospace; padding: 5px; }
     label.chk { font-size: 12px; display: flex; align-items: center; gap: 4px; }
     .ver { float: right; font-size: 11px; color: #57606a; font-weight: 400; }
+    #pairBox { border: 1px solid #d0d7de; border-radius: 6px; padding: 8px; margin-top: 6px; }
+    #secretOut { height: 46px; }
+    .hint { font-size: 11px; color: #57606a; margin: 4px 0; }
   </style>
 </head>
 <body>
+  <h3>Transplante de sessões <span id="conn" class="ver"></span></h3>
+  <div class="hint">Envia TODAS as suas sessões para as suas outras máquinas (que também tenham esta extensão e o mesmo segredo). O destino injeta sozinho.</div>
+  <div class="row">
+    <button id="transplant">Transplantar sessões</button>
+    <button id="pair">Parear / ver segredo</button>
+    <span id="transplantStatus" class="muted"></span>
+  </div>
+  <div id="pairBox" style="display:none">
+    <div class="hint">1) Nesta máquina, copie o segredo abaixo. 2) Na outra máquina, cole no campo "entrar no mesmo canal". Pronto — mesmas sessões, mesmo canal privado.</div>
+    <textarea id="secretOut" readonly placeholder="seu segredo aparece aqui"></textarea>
+    <div id="qr" class="hint"></div>
+    <input id="secretIn" type="text" placeholder="cole aqui o segredo de outra máquina para entrar no mesmo canal">
+    <div class="row">
+      <button id="applySecret">Usar este segredo</button>
+      <button id="rotate">Rotacionar segredo</button>
+    </div>
+    <div class="hint">⚠️ O segredo é uma senha-mestra: quem o tiver acessa todas as suas sessões. Trate como senha.</div>
+  </div>
+
+  <hr>
+
   <h3>Ler / exportar cookies deste perfil <span id="version" class="ver"></span></h3>
   <input id="domains" type="text" placeholder="domínios separados por vírgula (ex.: google.com, atlassian.net)">
   <div class="row">
@@ -49,6 +73,6 @@
     <span id="status" class="muted"></span>
   </div>
   <ul id="log"></ul>
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

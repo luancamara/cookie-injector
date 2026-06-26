@@ -1,3 +1,6 @@
+import { setCookie as injSetCookie, fromDevtoolsParsed } from './src/injector.js';
+import { ensureSecret, setSecret, rotateSecret } from './src/config.js';
+
 const rawEl = document.getElementById('raw');
 const logEl = document.getElementById('log');
 const statusEl = document.getElementById('status');
@@ -5,7 +8,6 @@ const statusEl = document.getElementById('status');
 // Mostra a versão carregada (confirma que a extensão foi recarregada)
 document.getElementById('version').textContent = 'v' + chrome.runtime.getManifest().version;
 
-const SAME_SITE = { none: 'no_restriction', lax: 'lax', strict: 'strict' };
 const SS_TOKENS = ['strict', 'lax', 'none'];
 
 function line(msg, cls) {
@@ -79,60 +81,7 @@ function parseRaw(raw) {
   return { cookies, warnings };
 }
 
-// --- Injeção ----------------------------------------------------------------
-// Remove APENAS variantes conflitantes do MESMO host (host-only vs domínio, com/sem
-// ponto) e SOMENTE depois que o novo cookie já foi gravado com sucesso. Nunca remove
-// o cookie que acabamos de gravar. Isso evita destruir uma sessão existente quando o
-// chrome.cookies.set falha (ex.: cookies __Host-, SameSite=None sem Secure, etc.).
-async function removeConflictingVariants(name, host, path, justSetDomain) {
-  let existing;
-  try {
-    existing = await chrome.cookies.getAll({ name, domain: host });
-  } catch (_) {
-    return;
-  }
-  const variants = new Set(['.' + host, host]);   // mesmo host, host-only e de-domínio
-  for (const e of existing) {
-    if (e.name !== name || e.path !== path) continue;
-    if (e.domain === justSetDomain) continue;       // não remove o que acabamos de gravar
-    if (!variants.has(e.domain)) continue;          // só variantes do mesmo host
-    const eScheme = e.secure ? 'https://' : 'http://';
-    try {
-      await chrome.cookies.remove({ url: eScheme + e.domain.replace(/^\./, '') + e.path, name: e.name });
-    } catch (_) { /* ignora falha de limpeza */ }
-  }
-}
-
-async function setCookie(c) {
-  const host = c.domain.replace(/^\./, '');
-  const scheme = c.secure ? 'https://' : 'http://';
-  const path = c.path || '/';
-  const details = {
-    url: scheme + host + path,
-    name: c.name,
-    value: c.value,
-    path,
-    secure: !!c.secure,
-    httpOnly: !!c.httpOnly,
-  };
-  if (!c.hostOnly) details.domain = c.domain;
-  if (c.sameSite) {
-    const ss = SAME_SITE[String(c.sameSite).toLowerCase()];
-    if (ss) details.sameSite = ss;
-  }
-  if (c.expires && !/^session$/i.test(c.expires)) {
-    const t = Date.parse(c.expires);
-    if (!isNaN(t)) details.expirationDate = t / 1000;
-  }
-  // Grava primeiro — set() já sobrescreve um cookie de mesma identidade.
-  const result = await chrome.cookies.set(details);
-  // Só limpa variantes conflitantes se a gravação deu certo (não-destrutivo em falha).
-  if (result) {
-    await removeConflictingVariants(c.name, host, path, result.domain);
-  }
-  return result;
-}
-
+// --- Injeção (caminho manual, reusa o módulo injector) ----------------------
 async function inject() {
   logEl.innerHTML = '';
   const { cookies, warnings } = parseRaw(rawEl.value);
@@ -148,7 +97,7 @@ async function inject() {
   for (const c of cookies) {
     const where = c.name + ' @ ' + c.domain + c.path;
     try {
-      const set = await setCookie(c);
+      const set = await injSetCookie(chrome.cookies, fromDevtoolsParsed(c));
       if (set) { ok++; line('✓ ' + where, 'ok'); }
       else {
         fail++;
@@ -360,3 +309,63 @@ deleteBtn.addEventListener('click', () => {
 
 document.getElementById('list').addEventListener('click', listCookies);
 document.getElementById('export').addEventListener('click', exportCookies);
+
+// --- Transplante de sessões (pareamento + envio) ----------------------------
+const storageLocal = chrome.storage.local;
+const connEl = document.getElementById('conn');
+const transplantStatusEl = document.getElementById('transplantStatus');
+const pairBox = document.getElementById('pairBox');
+const secretOut = document.getElementById('secretOut');
+
+function refreshStatus() {
+  chrome.runtime.sendMessage({ type: 'status' }, (r) => {
+    if (chrome.runtime.lastError) { connEl.textContent = '· iniciando'; return; }
+    connEl.textContent = r && r.connected ? '· conectado' : (r && r.status === 'sem-segredo' ? '· sem segredo' : '· offline');
+  });
+}
+
+document.getElementById('transplant').addEventListener('click', () => {
+  transplantStatusEl.textContent = 'enviando…';
+  chrome.runtime.sendMessage({ type: 'transplant' }, (r) => {
+    if (chrome.runtime.lastError || !r) { transplantStatusEl.textContent = 'erro: service worker indisponível'; return; }
+    if (r.error === 'sem-segredo') transplantStatusEl.textContent = 'configure o segredo em "Parear" primeiro';
+    else if (r.error === 'sem-conexao') transplantStatusEl.textContent = 'sem conexão com o relay — tente de novo';
+    else if (r.error) transplantStatusEl.textContent = 'erro: ' + r.error;
+    else transplantStatusEl.textContent = r.sent ? `enviado (${r.count} cookies)` : `falha ao enviar (${r.count} lidos)`;
+  });
+});
+
+function renderQR(text) {
+  const el = document.getElementById('qr');
+  el.textContent = 'Copie o segredo acima e cole na outra máquina (campo abaixo).';
+  el.title = text;
+}
+
+document.getElementById('pair').addEventListener('click', async () => {
+  const open = pairBox.style.display === 'none';
+  pairBox.style.display = open ? 'block' : 'none';
+  if (open) {
+    const s = await ensureSecret(storageLocal);
+    secretOut.value = s;
+    renderQR(s);
+  }
+});
+
+document.getElementById('applySecret').addEventListener('click', async () => {
+  const v = document.getElementById('secretIn').value.trim();
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(v)) { transplantStatusEl.textContent = 'segredo inválido (cole o valor completo)'; return; }
+  await setSecret(storageLocal, v);
+  chrome.runtime.sendMessage({ type: 'reconnect' }, () => {});
+  secretOut.value = v; renderQR(v);
+  transplantStatusEl.textContent = 'segredo aplicado — reconectando';
+});
+
+document.getElementById('rotate').addEventListener('click', async () => {
+  const s = await rotateSecret(storageLocal);
+  secretOut.value = s; renderQR(s);
+  chrome.runtime.sendMessage({ type: 'reconnect' }, () => {});
+  transplantStatusEl.textContent = 'novo segredo — repareie as outras máquinas';
+});
+
+refreshStatus();
+setInterval(refreshStatus, 3000);
