@@ -104,21 +104,22 @@ Na origem, clique **Transplantar sessões**. Em segundos a(s) outra(s) máquina(
 recebem e injetam; uma notificação confirma quantas sessões entraram. Recarregue um
 site logado no destino para conferir.
 
-### Subir o relay (Cloudflare)
+### Relay (Cloudflare) — já publicado
 
-O relay é um Worker minúsculo. Para publicá-lo na sua conta Cloudflare:
+O relay já está no ar em **`wss://cookie-injector-relay.luancamara.workers.dev`**
+(Worker + Durable Object SQLite, plano gratuito) e a extensão já aponta para ele em
+`src/constants.js`. Não é preciso fazer mais nada para usar.
+
+Para **republicar** após mudar o código do relay:
 
 ```bash
 cd relay
-npm install          # instala o wrangler
-npx wrangler login   # autentica na sua conta (abre o navegador)
-npx wrangler deploy  # publica e imprime a URL wss://cookie-injector-relay.<conta>.workers.dev
+npm install
+npx wrangler deploy   # requer `npx wrangler login` uma vez
 ```
 
-Depois aponte a extensão para essa URL: edite `src/constants.js`
-(`DEFAULT_RELAY_URL = 'wss://cookie-injector-relay.<conta>.workers.dev'`) **ou** defina
-um override em `chrome.storage.local` na chave `relayUrl`. Durable Objects rodam no
-**plano gratuito** (migração `new_sqlite_classes`).
+Para apontar para outro relay sem editar o código, defina um override em
+`chrome.storage.local` na chave `relayUrl`.
 
 ### ⚠️ Segurança
 
