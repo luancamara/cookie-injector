@@ -47,4 +47,31 @@ describe('transport', () => {
     timer();
     expect(FakeWS.last).not.toBe(first);
   });
+
+  it('fecha o socket quando não recebe nada por 2 ciclos (meio-aberto)', () => {
+    let now = 0;
+    const timers = [];
+    const setT = (fn) => { timers.push(fn); return timers.length; };
+    const t = createTransport({
+      url: 'wss://r', roomId: 'ROOM', onMessage: () => {}, onStatus: () => {},
+      WebSocketImpl: FakeWS, setTimeoutImpl: setT, clearTimeoutImpl: () => {},
+      nowImpl: () => now, heartbeatMs: 100,
+    });
+    t.connect();
+    const sock = FakeWS.last;
+    let closed = false;
+    sock.close = () => { closed = true; };
+    sock.open();                 // agenda o 1º tick do heartbeat
+    now = 250;                   // > 2 * 100 sem nada recebido
+    timers[timers.length - 1](); // executa o tick
+    expect(closed).toBe(true);
+  });
+
+  it('whenOpen resolve ao abrir', async () => {
+    const t = createTransport({ url: 'wss://r', roomId: 'ROOM', onMessage: () => {}, onStatus: () => {}, WebSocketImpl: FakeWS });
+    t.connect();
+    const p = t.whenOpen(1000);
+    FakeWS.last.open();
+    await expect(p).resolves.toBeUndefined();
+  });
 });

@@ -1,4 +1,4 @@
-import { setCookie as injSetCookie, fromDevtoolsParsed } from './src/injector.js';
+import { setCookie as injSetCookie, fromDevtoolsParsed, fromExportFormat } from './src/injector.js';
 import { ensureSecret, setSecret, rotateSecret } from './src/config.js';
 
 const rawEl = document.getElementById('raw');
@@ -81,23 +81,37 @@ function parseRaw(raw) {
   return { cookies, warnings };
 }
 
-// --- Injeção (caminho manual, reusa o módulo injector) ----------------------
+// --- Injeção (caminho manual: aceita linhas do DevTools OU JSON exportado) ---
+function specsFromInput() {
+  const text = rawEl.value.trim();
+  if (text.startsWith('[') || text.startsWith('{')) {
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (e) { return { error: 'JSON inválido: ' + e.message }; }
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return { specs: list.map(fromExportFormat), warnings: [] };
+  }
+  const { cookies, warnings } = parseRaw(rawEl.value);
+  return { specs: cookies.map(fromDevtoolsParsed), warnings };
+}
+
 async function inject() {
   logEl.innerHTML = '';
-  const { cookies, warnings } = parseRaw(rawEl.value);
-  warnings.forEach(w => line('⚠ ' + w, 'warn'));
+  const { specs, warnings, error } = specsFromInput();
+  if (error) { line(error, 'err'); return; }
+  (warnings || []).forEach(w => line('⚠ ' + w, 'warn'));
 
-  if (!cookies.length) {
-    line('Nada para injetar — confira se colou as linhas (com TAB).', 'err');
+  if (!specs.length) {
+    line('Nada para injetar — cole as linhas do DevTools (com TAB) ou um JSON válido.', 'err');
     return;
   }
 
   statusEl.textContent = 'injetando…';
   let ok = 0, fail = 0;
-  for (const c of cookies) {
-    const where = c.name + ' @ ' + c.domain + c.path;
+  const batchKeys = new Set(specs.map(s => s.name + '|' + s.domain + '|' + (s.path || '/')));
+  for (const spec of specs) {
+    const where = spec.name + ' @ ' + spec.domain + (spec.path || '/');
     try {
-      const set = await injSetCookie(chrome.cookies, fromDevtoolsParsed(c));
+      const set = await injSetCookie(chrome.cookies, spec, batchKeys);
       if (set) { ok++; line('✓ ' + where, 'ok'); }
       else {
         fail++;
@@ -109,7 +123,7 @@ async function inject() {
       line('✗ ' + where + ' — ' + e.message, 'err');
     }
   }
-  statusEl.textContent = `${ok} ok · ${fail} falha(s) · ${cookies.length} total`;
+  statusEl.textContent = `${ok} ok · ${fail} falha(s) · ${specs.length} total`;
 }
 
 function preview() {

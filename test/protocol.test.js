@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPayload, checkFreshness, MAX_AGE_MS, PROTOCOL_VERSION } from '../src/protocol.js';
+import { buildPayload, checkFreshness, MAX_AGE_MS, SKEW_MS, PROTOCOL_VERSION } from '../src/protocol.js';
 
 describe('protocol', () => {
   it('buildPayload monta envelope versionado', () => {
@@ -28,5 +28,10 @@ describe('protocol', () => {
   it('rejeita versão incompatível', () => {
     const r = checkFreshness({ v: 999, ts: 1000, nonce: 'n1', cookies: [] }, 1000, new Set());
     expect(r).toEqual({ ok: false, reason: 'version' });
+  });
+
+  it('rejeita timestamp muito no futuro (skew)', () => {
+    const r = checkFreshness(buildPayload([], 1000 + SKEW_MS + 1, 'n1'), 1000, new Set());
+    expect(r).toEqual({ ok: false, reason: 'expired' });
   });
 });

@@ -7,9 +7,13 @@ import { createTransport } from './src/transport.js';
 import { handleIncoming } from './src/receiver.js';
 import { encryptJSON, toB64url } from './src/crypto.js';
 import { buildPayload } from './src/protocol.js';
+import { createNonceStore } from './src/replay.js';
 
-const storage = chrome.storage.local;
-const seenNonces = new Set();
+const local = chrome.storage.local;
+// Anti-replay persistente: sobrevive ao reciclo do SW, limpo ao fechar o navegador.
+const session = (chrome.storage && chrome.storage.session) || chrome.storage.local;
+const nonceStore = createNonceStore(session);
+
 let transport = null;
 let current = null; // { roomId, key }
 let status = 'idle';
@@ -30,20 +34,23 @@ function notify(info) {
 async function onIncoming(envelope) {
   if (!current) return;
   await handleIncoming(
-    { key: current.key, cookiesApi: chrome.cookies, seenNonces, now: Date.now(), notify },
+    { key: current.key, cookiesApi: chrome.cookies, seenNonces: nonceStore, now: Date.now(), notify },
     envelope,
   );
 }
 
-async function setup() {
-  const rk = await getRoomAndKey(storage);
+async function doSetup() {
+  const rk = await getRoomAndKey(local);
   if (!rk) {
     status = 'sem-segredo';
     if (transport) { transport.close(); transport = null; }
     current = null;
     return;
   }
-  const url = await getRelayUrl(storage);
+  // Já conectado na mesma sala? Não recria (evita churn quando vários gatilhos disparam).
+  if (transport && current && current.roomId === rk.roomId && transport.isOpen()) return;
+  const url = await getRelayUrl(local);
+  await nonceStore.load();
   if (transport) transport.close();
   current = rk;
   transport = createTransport({
@@ -55,16 +62,23 @@ async function setup() {
   transport.connect();
 }
 
+// Serializa setup() para que invocações concorrentes nunca se entrelacem.
+let chain = Promise.resolve();
+function setup() { chain = chain.then(doSetup, doSetup); return chain; }
+
 function randomNonce() {
   return toB64url(crypto.getRandomValues(new Uint8Array(12)));
 }
 
 async function transplant() {
+  if (!current) await setup();
   if (!current) return { error: 'sem-segredo' };
-  if (!(transport && transport.isOpen())) return { error: 'sem-conexao', count: 0 };
+  if (!(transport && transport.isOpen())) {
+    try { await transport.whenOpen(4000); } catch { return { error: 'sem-conexao', count: 0 }; }
+  }
   const cookies = await collectAllCookies(chrome.cookies);
   const nonce = randomNonce();
-  seenNonces.add(nonce); // se o próprio pacote voltar via store-and-forward, ignora
+  nonceStore.add(nonce, Date.now()); // se o próprio pacote voltar via store-and-forward, ignora
   const payload = buildPayload(cookies, Date.now(), nonce);
   const env = await encryptJSON(current.key, payload);
   const sent = transport.send(env);
@@ -73,10 +87,14 @@ async function transplant() {
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
-    if (msg.type === 'transplant') sendResponse(await transplant());
-    else if (msg.type === 'status') sendResponse({ status, connected: !!(transport && transport.isOpen()) });
-    else if (msg.type === 'reconnect') { await setup(); sendResponse({ ok: true, status }); }
-    else sendResponse({});
+    try {
+      if (msg.type === 'transplant') sendResponse(await transplant());
+      else if (msg.type === 'status') sendResponse({ status, connected: !!(transport && transport.isOpen()) });
+      else if (msg.type === 'reconnect') { await setup(); sendResponse({ ok: true, status }); }
+      else sendResponse({});
+    } catch (e) {
+      sendResponse({ error: String((e && e.message) || e) });
+    }
   })();
   return true; // resposta assíncrona
 });
@@ -88,9 +106,14 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // Keepalive: o alarme acorda o SW e religa o WS caso tenha sido descarregado.
-chrome.alarms.create('keepalive', { periodInMinutes: 0.5 });
+// Criado de forma idempotente para não reiniciar a contagem a cada wake.
+chrome.alarms.get('keepalive', (a) => {
+  if (!a) chrome.alarms.create('keepalive', { periodInMinutes: 0.5 });
+});
 chrome.alarms.onAlarm.addListener((a) => {
-  if (a.name === 'keepalive' && !(transport && transport.isOpen())) setup();
+  if (a.name !== 'keepalive') return;
+  nonceStore.prune(Date.now());
+  if (!(transport && transport.isOpen())) setup();
 });
 
 setup();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { setCookie, injectAll, fromDevtoolsParsed } from '../src/injector.js';
+import { setCookie, injectAll, fromDevtoolsParsed, fromExportFormat } from '../src/injector.js';
 
 function fakeApi() {
   const store = [];
@@ -44,5 +44,33 @@ describe('injector', () => {
     const spec = fromDevtoolsParsed({ name: 'a', value: '1', domain: '.x.com', path: '/', secure: true, httpOnly: true, sameSite: 'None', expires: '2027-01-01T00:00:00.000Z', hostOnly: false });
     expect(spec.sameSite).toBe('no_restriction');
     expect(spec.expirationDate).toBe(Date.parse('2027-01-01T00:00:00.000Z') / 1000);
+  });
+
+  it('sameSite None força Secure e url https', async () => {
+    const api = fakeApi();
+    await setCookie(api, { name: 's', value: '1', domain: '.x.com', path: '/', secure: false, httpOnly: false, sameSite: 'no_restriction', expirationDate: null, hostOnly: false });
+    const d = api.set.mock.calls[0][0];
+    expect(d.secure).toBe(true);
+    expect(d.url.startsWith('https://')).toBe(true);
+    expect(d.sameSite).toBe('no_restriction');
+  });
+
+  it('injectAll preserva ambas variantes (host-only e de-domínio) do mesmo lote', async () => {
+    const api = fakeApi();
+    await injectAll(api, [
+      { name: 'sid', value: '1', domain: 'x.com', path: '/', secure: true, httpOnly: false, sameSite: 'lax', expirationDate: null, hostOnly: true },
+      { name: 'sid', value: '1', domain: '.x.com', path: '/', secure: true, httpOnly: false, sameSite: 'lax', expirationDate: null, hostOnly: false },
+    ]);
+    expect(api.remove).not.toHaveBeenCalled();
+  });
+
+  it('fromExportFormat converte sameSite e expirationDate ISO', () => {
+    const spec = fromExportFormat({ name: 'a', value: '1', domain: '.x.com', path: '/', secure: true, httpOnly: true, sameSite: 'Strict', expirationDate: '2027-01-01T00:00:00.000Z', hostOnly: false });
+    expect(spec.sameSite).toBe('strict');
+    expect(spec.expirationDate).toBe(Date.parse('2027-01-01T00:00:00.000Z') / 1000);
+  });
+
+  it('fromExportFormat trata session como sem expiração', () => {
+    expect(fromExportFormat({ name: 'a', value: '1', domain: 'x.com', path: '/', expirationDate: 'session' }).expirationDate).toBe(null);
   });
 });
