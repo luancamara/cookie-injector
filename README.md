@@ -71,3 +71,64 @@ Os cookies são copiados direto do DevTools do navegador onde a sessão já est�
 
 > ⚠️ Cookies de sessão são credenciais. Copie/injete apenas cookies de contas que
 > são suas e em máquinas confiáveis.
+
+## 4. Transplante automático de sessões (novo — v1.4)
+
+Além do fluxo manual acima, a extensão transplanta **todas as sessões** do perfil de
+uma máquina sua para outra **automaticamente**: você dispara na origem e a máquina de
+destino (com a mesma extensão e o mesmo segredo) **recebe e injeta sozinha**, sem
+nenhum clique. Isso cobre justamente o que o Chrome Sync **não** sincroniza (cookies).
+
+### Como funciona
+
+- Um **relay** (Cloudflare Worker + Durable Object) fica no meio só para repassar bytes.
+- O conteúdo trafega **criptografado de ponta a ponta** (AES-GCM); a chave é derivada
+  (HKDF) de um **segredo compartilhado** que vive só nas suas máquinas. O relay nunca
+  vê seus cookies.
+- A **origem sempre inicia** o envio. O destino mantém um WebSocket vivo no service
+  worker, recebe o pacote, decifra e injeta, e mostra uma notificação.
+- Se o destino estava offline, o relay guarda o último pacote por ~2 min (TTL) e entrega
+  assim que ele reconectar.
+
+### Pareamento (uma vez)
+
+1. Na máquina A, abra a extensão → **Parear / ver segredo**. Um segredo é gerado.
+2. Copie esse segredo e cole na máquina B (mesmo botão → campo "entrar no mesmo canal")
+   → **Usar este segredo**. Repita nas demais máquinas suas.
+3. Pronto: todas no mesmo canal privado. Para trocar o segredo depois, use
+   **Rotacionar segredo** (e repareie as outras máquinas).
+
+### Enviar
+
+Na origem, clique **Transplantar sessões**. Em segundos a(s) outra(s) máquina(s)
+recebem e injetam; uma notificação confirma quantas sessões entraram. Recarregue um
+site logado no destino para conferir.
+
+### Subir o relay (Cloudflare)
+
+O relay é um Worker minúsculo. Para publicá-lo na sua conta Cloudflare:
+
+```bash
+cd relay
+npm install          # instala o wrangler
+npx wrangler login   # autentica na sua conta (abre o navegador)
+npx wrangler deploy  # publica e imprime a URL wss://cookie-injector-relay.<conta>.workers.dev
+```
+
+Depois aponte a extensão para essa URL: edite `src/constants.js`
+(`DEFAULT_RELAY_URL = 'wss://cookie-injector-relay.<conta>.workers.dev'`) **ou** defina
+um override em `chrome.storage.local` na chave `relayUrl`. Durable Objects rodam no
+**plano gratuito** (migração `new_sqlite_classes`).
+
+### ⚠️ Segurança
+
+O segredo é uma **senha-mestra**: quem o tiver acessa **todas** as suas sessões. Trate
+como senha — não versione, não compartilhe. O transplante foi desenhado para **as suas
+próprias máquinas**; enviar para terceiros equivale a compartilhar login.
+
+### Desenvolvimento / testes
+
+```bash
+npm install      # vitest
+npm test         # roda os módulos puros (crypto, protocolo, injeção, relay-core...)
+```
