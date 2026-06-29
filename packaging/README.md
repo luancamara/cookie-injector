@@ -42,25 +42,39 @@ Saída em `packaging/build/`:
 ### 2. Hospedar `.crx` + `update.xml`
 
 Os dois arquivos precisam ficar acessíveis na URL definida em `CRX_BASE_URL`.
-Escolha uma opção:
 
-**a) Cloudflare Pages (mais simples, zero config)**
+**a) GitHub Releases (padrão, recomendado)**
+
+O `build-crx.sh` já assume este host por padrão — não precisa setar `CRX_BASE_URL`.
+A URL `releases/latest/download/<arquivo>` é estável e sempre aponta para o release
+mais novo, então o auto-update funciona sem reconfigurar nada. O binário fica fora
+da árvore do git (sem inchar o histórico).
+
 ```bash
-# Suba só os 2 arquivos como um site estático:
-npx wrangler pages deploy packaging/build --project-name cookie-injector-ext
-# A URL vira algo como https://cookie-injector-ext.pages.dev
-# Use CRX_BASE_URL=https://cookie-injector-ext.pages.dev e rode o build de novo.
+bash packaging/publish-release.sh
 ```
 
-**b) Cloudflare R2 (bucket público)** — suba os 2 arquivos e use a URL pública do bucket.
+Isso cria/atualiza o release `v<versão do manifest>` e sobe `cookie-injector.crx`
+e `update.xml` como assets. URLs resultantes:
 
-**c) Servir pelo próprio relay Worker** — adicione no `relay/src/worker.js`, antes
-do check de WebSocket, uma rota estática (requer bind de assets/R2). Mantido fora
-do worker por padrão para não acoplar distribuição ao relay E2E.
+```
+https://github.com/luancamara/cookie-injector/releases/latest/download/cookie-injector.crx
+https://github.com/luancamara/cookie-injector/releases/latest/download/update.xml
+```
+
+> Requer repositório **público** (ou que as máquinas-alvo tenham acesso ao repo).
+
+**b) GitHub Pages** — habilite Pages e sirva os 2 arquivos de `docs/ext/`; rode o
+build com `CRX_BASE_URL=https://luancamara.github.io/cookie-injector/ext`. Funciona,
+mas comita o binário no repo.
+
+**c) Cloudflare Pages / R2** — `npx wrangler pages deploy packaging/build` (ou bucket
+R2 público) e use a URL resultante em `CRX_BASE_URL`.
 
 > Importante: o `update.xml` referencia a URL do `.crx`, e o `.mobileconfig`
-> referencia a URL do `update.xml`. Por isso, **defina `CRX_BASE_URL` antes do
-> build** — se mudar o host depois, rode `build-crx.sh` de novo.
+> referencia a URL do `update.xml`. Com GitHub Releases (padrão) as URLs já são
+> fixas. Em outros hosts, **defina `CRX_BASE_URL` antes do build** — se mudar o
+> host depois, rode `build-crx.sh` de novo.
 
 ### 3. Instalar o perfil no macOS
 
@@ -83,10 +97,10 @@ Abra `chrome://policy` (deve listar `ExtensionInstallForcelist`) e
 
 1. Bump da `version` no `manifest.json` da raiz.
 2. `bash packaging/build-crx.sh` (mesma `key.pem` → mesmo ID).
-3. Re-hospede o `.crx` e o `update.xml` novos.
+3. `bash packaging/publish-release.sh` (cria o release `v<nova versão>` e sobe os assets).
 
 O Chrome consulta o `update.xml` periodicamente e atualiza sozinho. Não é preciso
-reinstalar o perfil.
+reinstalar o perfil — a URL `latest/download` já aponta para o release novo.
 
 ## Windows (referência rápida)
 

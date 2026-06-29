@@ -15,7 +15,8 @@
 # Variáveis:
 #   CRX_BASE_URL  URL pública (sem barra final) onde o .crx e o update.xml ficarão
 #                 hospedados. Ex.: https://ext.luancamara.workers.dev
-#                 Default: https://cookie-injector-relay.luancamara.workers.dev/ext
+#                 Default: GitHub Releases (latest/download) deste repo — publique
+#                 com packaging/publish-release.sh.
 #
 set -euo pipefail
 
@@ -25,7 +26,7 @@ BUILD="$HERE/build"
 STAGE="$BUILD/dist-extension"
 KEY="$HERE/key.pem"
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
-CRX_BASE_URL="${CRX_BASE_URL:-https://cookie-injector-relay.luancamara.workers.dev/ext}"
+CRX_BASE_URL="${CRX_BASE_URL:-https://github.com/luancamara/cookie-injector/releases/latest/download}"
 
 echo "==> Limpando build anterior"
 rm -rf "$BUILD"
